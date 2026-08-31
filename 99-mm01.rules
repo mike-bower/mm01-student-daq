@@ -1,0 +1,9 @@
+# Micro-Measurements USB instruments — unprivileged access.
+#
+# Vendor 275f covers the MM01 StudentDAQ (product f002) as well as the P3
+# (f000) and D4 (f001). Without this rule /dev/hidraw* is root-only and the
+# app reports "no devices found" even though `lsusb` shows the unit.
+#
+# Install:  sudo cp 99-mm01.rules /etc/udev/rules.d/
+#           sudo udevadm control --reload && sudo udevadm trigger
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="275f", MODE="0666"

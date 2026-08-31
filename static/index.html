@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MM01 StudentDAQ</title>
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2128; --border:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#3fb950; --blue:#388bfd;
+    --red:#f85149; --amber:#d29922;
+    --font:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  [x-cloak]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px}
+  header{display:flex;align-items:center;gap:12px;padding:12px 18px;
+         background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  h1{font-size:15px;margin:0;font-weight:700}
+  main{padding:18px;max-width:1100px;margin:0 auto}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+        padding:16px;margin-bottom:16px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+  .dot.on{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+  .badge{font-family:var(--font);font-size:11px;padding:2px 7px;border-radius:10px;
+         background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+  .badge.sim{color:var(--amber);border-color:var(--amber);background:#d2992222}
+  .reading{font-family:var(--font);font-size:56px;font-weight:600;line-height:1.05;
+           color:var(--accent);letter-spacing:-1px}
+  .reading .unit{font-size:22px;color:var(--muted);margin-left:6px}
+  .sub{font-family:var(--font);font-size:12px;color:var(--muted);margin-top:6px}
+  label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+  input,select{background:var(--surface2);color:var(--text);border:1px solid var(--border);
+               border-radius:6px;padding:6px 8px;font-family:var(--font);font-size:13px}
+  button{background:var(--surface2);color:var(--text);border:1px solid var(--border);
+         border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer}
+  button:hover:not(:disabled){border-color:var(--muted)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+  .alert{padding:10px 12px;border-radius:6px;font-size:13px;margin-bottom:12px}
+  .alert.info{background:#388bfd18;border:1px solid #388bfd55}
+  .alert.err{background:#f8514918;border:1px solid #f8514955;color:#ffb4ae}
+  #chart{width:100%;height:320px}
+  code{font-family:var(--font);font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body x-data="{ chartWindow: 60 }">
+
+<header>
+  <h1>MM01 StudentDAQ</h1>
+  <div class="dot" :class="{ on: $store.mm01.wsConnected }"></div>
+  <span class="badge" x-text="$store.mm01.wsConnected ? 'streaming' : 'not streaming'"></span>
+  <span class="badge" x-show="$store.mm01.devices.length"
+        x-text="$store.mm01.devices.length + ' device' + ($store.mm01.devices.length !== 1 ? 's' : '') + ' · 80 S/s'"></span>
+  <span class="badge sim" x-cloak
+        x-show="$store.mm01.devices.some(d => (d.path || '').startsWith('virtual://'))"
+        title="These readings are generated, not measured">SIMULATOR</span>
+</header>
+
+<main>
+
+  <!-- Something went wrong -->
+  <div class="alert err" x-show="$store.mm01.error" x-cloak>
+    <span x-text="$store.mm01.error"></span>
+  </div>
+
+  <!-- No device found -->
+  <div class="card" x-show="!$store.mm01.devices.length" x-cloak>
+    <strong>No MM01 found.</strong>
+    <div class="sub" style="margin-top:8px;line-height:1.7">
+      1. Check the USB cable is seated at both ends.<br>
+      2. Run <code>lsusb</code> — you should see <code>275f:f002</code>.<br>
+      3. Confirm the udev rule is installed (see <code>docs/01-hardware-setup.md</code>),
+         then unplug and replug the MM01.<br>
+      4. To work without hardware, set <code>MM01_SIM_ENABLED=true</code> in <code>.env</code>
+         and restart.
+    </div>
+    <div style="margin-top:12px">
+      <button @click="$store.mm01.rescan()" :disabled="$store.mm01.loading">Scan again</button>
+    </div>
+  </div>
+
+  <!-- One card per device -->
+  <template x-for="dev in $store.mm01.devices" :key="dev.device_index">
+    <div class="card">
+
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div>
+          <span class="badge" :style="'color:'+dev.color+';border-color:'+dev.color"
+                x-text="dev.product_type"></span>
+          <span class="sub" style="margin-left:8px"
+                x-text="'serial ' + dev.serial_number + ' · fw ' + dev.firmware_version"></span>
+        </div>
+        <span class="sub" x-text="dev.bridge_name + ' · GF ' + dev.gage_factor"></span>
+      </div>
+
+      <!-- Live reading -->
+      <div class="reading">
+        <span x-text="$store.mm01.reading(dev.device_index)
+                ? $store.mm01.reading(dev.device_index).value.toFixed(1) : '—'"></span><span class="unit">µε</span>
+      </div>
+      <div class="sub" x-show="$store.mm01.reading(dev.device_index)" x-cloak>
+        <span x-text="'mV/V ' + ($store.mm01.reading(dev.device_index)?.mvPerV ?? 0).toFixed(5)"></span>
+        &nbsp;·&nbsp;
+        <span x-text="'min ' + $store.mm01.reading(dev.device_index)?.min.toFixed(1)
+                    + '  max ' + $store.mm01.reading(dev.device_index)?.max.toFixed(1)"></span>
+        &nbsp;·&nbsp;
+        <span x-text="'offset ' + (dev.zero_offset || 0).toFixed(6) + ' V'"></span>
+      </div>
+
+      <!-- Controls -->
+      <div class="row" style="margin-top:16px">
+        <label>Bridge
+          <select :value="dev.bridge"
+                  @change="$store.mm01.setBridge(dev.device_index, $event.target.value)">
+            <option value="0">Quarter bridge</option>
+            <option value="1">Half bridge</option>
+            <option value="2">Full bridge</option>
+          </select>
+        </label>
+
+        <label>Gage factor
+          <input type="number" step="0.001" min="0.001" max="9.999" style="width:100px"
+                 :value="dev.gage_factor"
+                 @change="$store.mm01.setGageFactor(dev.device_index, $event.target.value)">
+        </label>
+
+        <label>Label
+          <input type="text" maxlength="32" style="width:150px" :value="dev.label"
+                 @change="$store.mm01.setLabel(dev.device_index, $event.target.value)">
+        </label>
+
+        <label>Balance
+          <span style="display:flex;gap:6px">
+            <button @click="$store.mm01.zero(dev.device_index)"
+                    :disabled="$store.mm01.isBusy(dev.device_index)"
+                    title="Average 50 readings and store the result as zero">
+              <span x-show="!$store.mm01.isBusy(dev.device_index)">Zero</span>
+              <span x-show="$store.mm01.isBusy(dev.device_index)" x-cloak>…</span>
+            </button>
+            <button @click="$store.mm01.clearZero(dev.device_index)">Clear</button>
+          </span>
+        </label>
+      </div>
+    </div>
+  </template>
+
+  <!-- Strip chart -->
+  <div class="card" x-show="$store.mm01.devices.length" x-cloak>
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <strong style="font-size:13px">Strain vs time</strong>
+      <span style="display:flex;gap:6px">
+        <template x-for="w in [10, 30, 60, 300]" :key="w">
+          <button @click="Charts.setWindow(w); chartWindow = w"
+                  :class="chartWindow === w ? 'primary' : ''"
+                  x-text="w < 60 ? w + 's' : (w / 60) + 'm'"></button>
+        </template>
+        <button @click="Charts.clear()">Clear</button>
+        <button @click="$store.mm01.resetMinMax()">Reset min/max</button>
+      </span>
+    </div>
+    <div id="chart" x-init="$nextTick(() => Charts.mount($el))"></div>
+  </div>
+
+</main>
+
+<script src="vendor/uPlot.iife.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/chart.js"></script>
+<script src="js/mm01.js"></script>
+<script defer src="vendor/alpine.min.js"></script>
+</body>
+</html>
