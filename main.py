@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="MM01 StudentDAQ",
     description="Live strain readout for the Micro-Measurements MM01.",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
