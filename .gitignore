@@ -5,3 +5,6 @@ __pycache__/
 .env
 wheelhouse/
 recordings/
+
+# Scratch profile written by docs/whitepaper/render.py
+docs/whitepaper/.chrome-profile/

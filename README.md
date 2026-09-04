@@ -90,6 +90,7 @@ the USB stick; `setup_pi.sh` finds it and installs without a network.
 | `docs/labs/04-bridge-type.md`    | Lab 4 — quarter, half and full bridge |
 | `docs/labs/05-cantilever-beam.md`| Lab 5 — measure a beam, check it against theory |
 | `docs/troubleshooting.md`   | When it doesn't work |
+| `MM01-StudentDAQ-white-paper.pdf` | White paper — how the kit works and why it was built this way |
 
 ---
 

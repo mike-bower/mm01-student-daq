@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Creating a web-based API for the MM-01 StudentDAQ on Raspberry Pi Hardware</title>
+<style>
+  @page { size: A4; }
+  :root {
+    --ink: #1a1a1a; --muted: #555; --rule: #c9ced6; --navy: #1f3a5f;
+    --shade: #f3f5f8; --accent: #2f6db3;
+    --serif: "Liberation Serif", "Times New Roman", Times, serif;
+    --sans: "Liberation Sans", Arial, Helvetica, sans-serif;
+    --mono: "Liberation Mono", "DejaVu Sans Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--ink); }
+  body { font-family: var(--serif); font-size: 10pt; line-height: 1.42; }
+
+  /* Title block */
+  .masthead { border-bottom: 2px solid var(--navy); padding-bottom: 10pt; margin-bottom: 14pt; }
+  .kicker { font-family: var(--sans); font-size: 8.5pt; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 8pt; }
+  h1 { font-family: var(--sans); font-size: 22pt; line-height: 1.2; margin: 0 0 8pt; color: var(--navy); font-weight: 700; }
+  .byline { font-family: var(--sans); font-size: 9.5pt; color: var(--muted); margin: 0; }
+  .byline b { color: var(--ink); font-weight: 600; }
+  .byline.disclosure { font-size: 8.6pt; font-style: italic; margin-top: 4pt; }
+
+  .abstract { background: var(--shade); border-left: 3px solid var(--navy); padding: 8pt 12pt; margin: 0 0 12pt; font-size: 9.6pt; }
+  .abstract h2 { margin: 0 0 4pt; font-size: 10pt; letter-spacing: .1em; text-transform: uppercase; border: 0; padding: 0; }
+  .abstract p { margin: 0; text-align: justify; }
+  .keywords { font-family: var(--sans); font-size: 8.5pt; color: var(--muted); margin: 8pt 0 0; }
+
+  h2 { font-family: var(--sans); font-size: 13pt; color: var(--navy); margin: 16pt 0 6pt; padding-bottom: 3pt; border-bottom: 1px solid var(--rule); page-break-after: avoid; }
+  h3 { font-family: var(--sans); font-size: 10.5pt; color: var(--navy); margin: 11pt 0 4pt; page-break-after: avoid; }
+  p { margin: 0 0 6pt; text-align: justify; hyphens: auto; }
+  ul, ol { margin: 0 0 8pt 18pt; padding: 0; }
+  li { margin-bottom: 3pt; }
+  strong { font-weight: 700; }
+  code { font-family: var(--mono); font-size: 8.8pt; background: #f0f1f3; padding: 0 3px; border-radius: 2px; }
+  pre { font-family: var(--mono); font-size: 8.6pt; line-height: 1.4; background: var(--shade); border: 1px solid var(--rule); padding: 8pt 10pt; margin: 6pt 0 10pt; white-space: pre; overflow: hidden; page-break-inside: avoid; }
+
+  .eq { font-family: var(--serif); text-align: center; margin: 6pt 0 8pt; font-size: 11pt; page-break-inside: avoid; }
+  .eq .n { float: right; color: var(--muted); font-size: 9.5pt; }
+  .eq i { font-style: italic; }
+  .eq sup, .eq sub { font-size: 75%; }
+
+  table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 8.4pt; line-height: 1.3; margin: 4pt 0 2pt; page-break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 3pt 5pt; border-bottom: 1px solid var(--rule); }
+  th { background: var(--shade); font-weight: 700; border-bottom: 1.5px solid var(--navy); }
+  td code, th code { font-size: 8.2pt; background: transparent; padding: 0; }
+  .num { text-align: right; white-space: nowrap; }
+  .nowrap { white-space: nowrap; }
+
+  figure { margin: 6pt 0 8pt; page-break-inside: avoid; text-align: center; }
+  figure svg { max-width: 100%; height: auto; }
+  figcaption, .tcap { font-family: var(--sans); font-size: 8.8pt; color: var(--muted); text-align: left; margin-top: 4pt; }
+  .tcap { margin: 8pt 0 2pt; page-break-after: avoid; break-after: avoid; }
+  figcaption b, .tcap b { color: var(--ink); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14pt; }
+  .note { font-family: var(--sans); font-size: 9pt; background: #fff8e6; border-left: 3px solid #d29922; padding: 6pt 10pt; margin: 6pt 0 10pt; page-break-inside: avoid; }
+
+  .refs { font-size: 9.5pt; }
+  .refs li { margin-bottom: 3pt; }
+  .footer { margin-top: 18pt; padding-top: 6pt; border-top: 1px solid var(--rule); font-family: var(--sans); font-size: 8.5pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <p class="kicker">White paper</p>
+  <h1>Creating a web-based API for the MM-01 StudentDAQ on Raspberry&nbsp;Pi Hardware</h1>
+  <p class="byline"><b>Mike Bower</b> &nbsp;·&nbsp; September 2026 &nbsp;·&nbsp; Version 1.0 &nbsp;·&nbsp; Source: github.com/mike-bower/mm01-student-daq (MIT licence)</p>
+  <p class="byline disclosure">The software described here and this paper were developed with the assistance of Claude Code, using Anthropic's Claude Opus 5 model. See Acknowledgements.</p>
+</div>
+
+<div class="abstract">
+  <h2>Abstract</h2>
+  <p>The Micro-Measurements MM01 StudentDAQ is a single-channel, USB-powered strain-gage instrument built for teaching laboratories. It ships with a Windows-only application and a .NET interface library, which ties every instrument to a Windows PC and hides the measurement chain from the student. This paper describes the design and implementation of an open-source, web-based API for the MM01 that runs on a Raspberry Pi 4 and serves a live microstrain readout, a strip chart, a REST and WebSocket interface, and CSV recording to any browser on a classroom network. The USB HID protocol was recovered from the vendor's interface library and re-implemented in about 600 lines of Python (a thousand with its documentation) over the standard <code>hid</code> binding. Because the MM01 streams conversions at a fixed 80 samples per second rather than answering polls, the server runs one reader thread per device and a separate publisher thread, with a priority lock that keeps configuration commands responsive against the continuous stream. Gage factor and balance are applied on the host, and every recording is written with a metadata sidecar so that scaled values can be audited afterwards. A pure-Python virtual device reproduces the protocol closely enough that the whole stack, from report framing to REST, is verified by 103 automated tests with no hardware attached, and students without an instrument can still complete four of the five accompanying labs. The result installs from pinned binary wheels in a few minutes, needs no build step and no internet connection after setup, and exposes the entire measurement chain as readable code.</p>
+  <p class="keywords"><b>Keywords:</b> strain gage, data acquisition, USB HID, Raspberry Pi, FastAPI, WebSocket, laboratory teaching, open-source instrumentation</p>
+</div>
+
+<h2>1. Objective</h2>
+<p>The MM01 is an attractive teaching instrument: it is small, powered entirely from USB, has no controls of its own, and produces a clean 24-bit conversion stream from a quarter-, half- or full-bridge strain gage. Its limitation is the software. The supplied application runs only on Windows, on the PC the instrument is plugged into, and presents the student with a finished number. Nothing in that workflow shows where the number came from, and every bench needs its own Windows machine.</p>
+<p>The objective of this work was to replace that dependency with a small networked server on commodity hardware, so that a class can read the instrument from whatever device is already in the room. The specific goals were:</p>
+<ol>
+  <li><strong>Native Linux support.</strong> Read the MM01 over USB HID with no vendor software, on a Raspberry Pi 4 running the standard 64-bit Raspberry Pi OS.</li>
+  <li><strong>Many readers, one instrument.</strong> Serve the live reading to any number of browsers at once over HTTP and WebSocket, so an instructor's screen and every student laptop see the same stream.</li>
+  <li><strong>A complete, documented API.</strong> Expose every instrument control (bridge configuration, gage factor, zero balance, device labelling) through a REST interface with interactive OpenAPI documentation, so that laboratory exercises can be driven from the API page as easily as from the user interface.</li>
+  <li><strong>Recording with provenance.</strong> Write the stream to plain CSV that opens in a spreadsheet, alongside the settings that were in force, so that a recorded value can be traced back to raw counts.</li>
+  <li><strong>Code as a teaching resource.</strong> Keep the driver short, keep one function per device operation, and make the scaling arithmetic visible, so that the labs can point at the code rather than describe it.</li>
+  <li><strong>Reliable, offline installation.</strong> Install on the Pi with no compiler, from prebuilt wheels, and run indefinitely with no internet connection.</li>
+  <li><strong>Operation without hardware.</strong> Provide a simulator faithful enough that the labs about scaling and zeroing can be done on any computer, and that the test suite needs no instrument.</li>
+</ol>
+<p>Two things were deliberately left out. The server has no authentication, because it is meant to be reachable by every student on a closed classroom network without account management. And no attempt was made to capture every conversion with guaranteed timing; the instrument's own 80 S/s stream is preserved on the server, but the browser and the recorder sample it at configurable, slower rates, as discussed in Section&nbsp;3.7.</p>
+
+<h2>2. Hardware and software requirements</h2>
+<h3>2.1 Hardware</h3>
+<p class="tcap"><b>Table 1.</b> Hardware used for the reference deployment.</p>
+<table>
+  <tr><th style="width:26%">Item</th><th>Detail</th></tr>
+  <tr><td>Host computer</td><td>Raspberry Pi 4 Model B, 64-bit Raspberry Pi OS (Bullseye). Any Pi that runs the 64-bit OS should work; the Pi 4 was the reference target for wheel selection and timing measurements.</td></tr>
+  <tr><td>Instrument</td><td>Micro-Measurements MM01 StudentDAQ. USB vendor ID <code>0x275F</code>, product ID <code>0xF002</code>. Single channel, 24-bit signed ADC, fixed 80 samples/second, internal completion for quarter and half bridge, USB-powered. Several units may be attached to one Pi; each is a separate device and channel.</td></tr>
+  <tr><td>Sensor</td><td>A foil strain gage in quarter-bridge (three-wire), half-bridge or full-bridge configuration, wired to the MM01 terminals. Lab 5 uses a gage bonded to a cantilever beam with a known mass.</td></tr>
+  <tr><td>Power</td><td>The official Raspberry Pi USB-C supply. The MM01 draws its power from the Pi's USB port; an under-powered Pi does not fail cleanly but drops conversions.</td></tr>
+  <tr><td>Cabling</td><td>A USB data cable (some cables are charge-only and carry no data).</td></tr>
+  <tr><td>Network</td><td>A wired or wireless classroom LAN. Clients need only a web browser. The Pi itself needs internet once, during setup, or not at all if an offline wheelhouse is prepared.</td></tr>
+</table>
+
+<h3>2.2 Software</h3>
+<p>The server is a FastAPI application served by Uvicorn, with the device driver written directly against the <code>hid</code> package (a ctypes binding to hidapi). Table&nbsp;2 lists the pinned versions.</p>
+<p class="tcap"><b>Table 2.</b> Software stack. Python versions are pinned in <code>requirements.txt</code>; every pin has a prebuilt aarch64 / CPython&nbsp;3.9 wheel.</p>
+<table>
+  <tr><th style="width:30%">Component</th><th style="width:18%">Version</th><th>Role</th></tr>
+  <tr><td>Raspberry Pi OS (64-bit)</td><td>Bullseye</td><td>Operating system; supplies CPython 3.9 and the hidraw kernel driver</td></tr>
+  <tr><td>CPython</td><td>3.9</td><td>Runtime. Dictates the wheel pins and the use of <code>Optional[X]</code> in Pydantic models</td></tr>
+  <tr><td>libhidapi-hidraw0</td><td>apt</td><td>Native HID library the <code>hid</code> package loads</td></tr>
+  <tr><td>fastapi</td><td>0.128.8</td><td>REST routing, WebSocket endpoint, OpenAPI documentation</td></tr>
+  <tr><td>uvicorn[standard]</td><td>0.39.0</td><td>ASGI server (uvloop, httptools, websockets)</td></tr>
+  <tr><td>pydantic / pydantic-settings</td><td>2.13.5 / 2.11.0</td><td>Request and response models; <code>.env</code> configuration</td></tr>
+  <tr><td>hid</td><td>1.0.9</td><td>USB HID enumeration, open, read and write</td></tr>
+  <tr><td>pytest, pytest-asyncio, httpx</td><td>8.3.4 / 0.24.0 / 0.28.1</td><td>Test suite (development only)</td></tr>
+  <tr><td>Alpine.js</td><td>3.13.10</td><td>Browser reactivity for the single-page UI (vendored)</td></tr>
+  <tr><td>uPlot</td><td>1.6.28</td><td>Strip chart (vendored)</td></tr>
+  <tr><td>udev rule <code>99-mm01.rules</code></td><td>&mdash;</td><td>Grants unprivileged access to <code>/dev/hidraw*</code> for vendor <code>275f</code></td></tr>
+</table>
+<p>The version pins are a requirement in their own right, not a convenience. Recent releases of <code>pydantic-core</code> (2.48 and later) no longer publish CPython&nbsp;3.9 wheels, so an unpinned install on the Pi falls through to compiling Rust from source, which takes hours. The pinned set was resolved once, checked to be all-binary for the <code>manylinux2014_aarch64</code> / <code>cp39</code> target, and recorded with the reasoning at the top of the requirements file. A helper script downloads the same wheels on any internet-connected computer, selecting the Pi's platform rather than the host's, so that a Pi with no network can be provisioned from a USB stick:</p>
+<pre>pip download -d wheelhouse --python-version 3.9 --only-binary=:all: \
+    --platform manylinux2014_aarch64 -r requirements-dev.txt</pre>
+<p>The two front-end libraries are committed to the repository rather than loaded from a CDN, for the same reason: a laboratory Pi may never see the internet again after setup, and the page must still render.</p>
+
+<h2>3. Methods</h2>
+<p>Figure&nbsp;1 shows the finished system. The subsections below describe its parts in the order the data flows through them: the wire protocol and transport, the scaling arithmetic, the streaming and locking design inside the device manager, the HTTP interface, recording, simulation, the user interface, verification and deployment.</p>
+<figure>
+<svg width="540" height="270" viewBox="0 0 660 330" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, Arial, sans-serif" font-size="11">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1f3a5f"/>
+    </marker>
+  </defs>
+  <!-- Instrument -->
+  <rect x="10" y="120" width="112" height="70" rx="6" fill="#fff" stroke="#1f3a5f" stroke-width="1.4"/>
+  <text x="66" y="145" text-anchor="middle" font-weight="bold" fill="#1f3a5f">MM01</text>
+  <text x="66" y="161" text-anchor="middle" fill="#333" font-size="10">strain gage bridge</text>
+  <text x="66" y="175" text-anchor="middle" fill="#333" font-size="10">24-bit ADC, 80 S/s</text>
+  <!-- USB arrow -->
+  <line x1="122" y1="155" x2="176" y2="155" stroke="#1f3a5f" stroke-width="1.4" marker-end="url(#arr)"/>
+  <text x="149" y="147" text-anchor="middle" font-size="9" fill="#333">USB HID</text>
+
+  <!-- Pi box -->
+  <rect x="180" y="20" width="330" height="290" rx="8" fill="#f3f5f8" stroke="#1f3a5f" stroke-width="1.4"/>
+  <text x="192" y="38" font-weight="bold" fill="#1f3a5f">Raspberry Pi 4 &#183; FastAPI / Uvicorn, port 8110</text>
+
+  <!-- driver column -->
+  <rect x="192" y="52" width="150" height="212" rx="5" fill="#fff" stroke="#8a97a8" stroke-width="1" stroke-dasharray="3 2"/>
+  <text x="267" y="67" text-anchor="middle" font-size="9.5" fill="#555">app/mm01_bridge (frozen driver)</text>
+
+  <rect x="202" y="76" width="130" height="40" rx="4" fill="#fff" stroke="#1f3a5f"/>
+  <text x="267" y="92" text-anchor="middle" font-weight="bold">transport.py</text>
+  <text x="267" y="106" text-anchor="middle" font-size="9.5" fill="#333">hid handle, reports, lock</text>
+
+  <rect x="202" y="126" width="130" height="40" rx="4" fill="#fff" stroke="#1f3a5f"/>
+  <text x="267" y="142" text-anchor="middle" font-weight="bold">protocol.py</text>
+  <text x="267" y="156" text-anchor="middle" font-size="9.5" fill="#333">one function per operation</text>
+
+  <rect x="202" y="176" width="130" height="78" rx="4" fill="#fff" stroke="#1f3a5f"/>
+  <text x="267" y="192" text-anchor="middle" font-weight="bold">manager.py</text>
+  <text x="267" y="207" text-anchor="middle" font-size="9.5" fill="#333">reader thread per device</text>
+  <text x="267" y="220" text-anchor="middle" font-size="9.5" fill="#333">publisher thread</text>
+  <text x="267" y="233" text-anchor="middle" font-size="9.5" fill="#333">commands, _DeviceLock</text>
+  <text x="267" y="246" text-anchor="middle" font-size="9.5" fill="#333">last_counts / last_&#181;&#949;</text>
+
+  <line x1="267" y1="116" x2="267" y2="124" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="267" y1="166" x2="267" y2="174" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- routers column -->
+  <rect x="356" y="76" width="142" height="54" rx="4" fill="#fff" stroke="#1f3a5f"/>
+  <text x="427" y="93" text-anchor="middle" font-weight="bold">routers/mm01.py</text>
+  <text x="427" y="107" text-anchor="middle" font-size="9.5" fill="#333">REST  /mm01/&#8230;</text>
+  <text x="427" y="121" text-anchor="middle" font-size="9.5" fill="#333">WebSocket  /mm01/ws</text>
+
+  <rect x="356" y="146" width="142" height="54" rx="4" fill="#fff" stroke="#1f3a5f"/>
+  <text x="427" y="163" text-anchor="middle" font-weight="bold">recorder.py</text>
+  <text x="427" y="177" text-anchor="middle" font-size="9.5" fill="#333">writer thread, CSV + JSON</text>
+  <text x="427" y="191" text-anchor="middle" font-size="9.5" fill="#333">routers/recording.py</text>
+
+  <rect x="356" y="216" width="142" height="48" rx="4" fill="#fff" stroke="#1f3a5f"/>
+  <text x="427" y="233" text-anchor="middle" font-weight="bold">static/</text>
+  <text x="427" y="247" text-anchor="middle" font-size="9.5" fill="#333">index.html, Alpine, uPlot</text>
+  <text x="427" y="259" text-anchor="middle" font-size="9.5" fill="#333">served at /app/</text>
+
+  <!-- manager -> routers / recorder -->
+  <line x1="332" y1="200" x2="354" y2="110" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="332" y1="215" x2="354" y2="175" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- recordings folder -->
+  <rect x="356" y="276" width="142" height="26" rx="4" fill="#fff" stroke="#8a97a8"/>
+  <text x="427" y="293" text-anchor="middle" font-size="9.5" fill="#333">recordings/&lt;id&gt;.csv  .json</text>
+  <line x1="427" y1="200" x2="427" y2="214" stroke="#8a97a8" stroke-width="1" stroke-dasharray="2 2"/>
+  <line x1="470" y1="200" x2="470" y2="274" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- browsers -->
+  <line x1="510" y1="110" x2="562" y2="110" stroke="#1f3a5f" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="562" y1="126" x2="512" y2="126" stroke="#1f3a5f" stroke-width="1.4" marker-end="url(#arr)"/>
+  <text x="536" y="100" text-anchor="middle" font-size="9" fill="#333">HTTP / WS</text>
+  <rect x="566" y="70" width="84" height="40" rx="5" fill="#fff" stroke="#1f3a5f" stroke-width="1.2"/>
+  <text x="608" y="87" text-anchor="middle" font-size="10">Student laptop</text>
+  <text x="608" y="101" text-anchor="middle" font-size="9.5" fill="#555">browser</text>
+  <rect x="566" y="118" width="84" height="40" rx="5" fill="#fff" stroke="#1f3a5f" stroke-width="1.2"/>
+  <text x="608" y="135" text-anchor="middle" font-size="10">Student laptop</text>
+  <text x="608" y="149" text-anchor="middle" font-size="9.5" fill="#555">browser</text>
+  <rect x="566" y="166" width="84" height="40" rx="5" fill="#fff" stroke="#1f3a5f" stroke-width="1.2"/>
+  <text x="608" y="183" text-anchor="middle" font-size="10">Instructor</text>
+  <text x="608" y="197" text-anchor="middle" font-size="9.5" fill="#555">/docs, browser</text>
+  <line x1="562" y1="186" x2="512" y2="140" stroke="#1f3a5f" stroke-width="1.4" marker-end="url(#arr)"/>
+</svg>
+<figcaption><b>Figure 1.</b> System architecture. The driver consumes the instrument's stream; routers and the recorder read the manager's most-recent values; browsers on the classroom network receive frames over WebSocket and issue commands over REST.</figcaption>
+</figure>
+
+<h3>3.1 Recovering the wire protocol</h3>
+<p>No protocol description was available for the MM01. The vendor's MultiDaq distribution does, however, include <code>MM01InterfaceLib.dll</code> (version 2.0.2), a .NET assembly that wraps Silicon Labs' <code>SLABHIDDevice</code> layer. Decompiling that assembly gave the complete command set, the initialisation sequence and the scaling constants, and the driver was written to mirror it method for method so that behaviour could be compared against the vendor software.</p>
+<p>The MM01 shares its USB vendor ID with the vendor's P3 and D4 instruments but speaks an unrelated protocol. Commands are five meaningful bytes written on the control pipe (the device has no interrupt OUT endpoint): a report ID that is always zero, a command selector the vendor calls <em>USBCase</em>, and three parameters. Conversions and command replies arrive as five-byte input reports on the interrupt IN endpoint (Table&nbsp;3).</p>
+<p class="tcap"><b>Table 3.</b> Report formats as seen on Linux. Offsets are one lower than in the vendor's C# source because hidraw does not prepend the report-ID byte to input reports.</p>
+<table>
+  <tr><th style="width:18%">Direction</th><th style="width:14%">Bytes</th><th>Content</th></tr>
+  <tr><td>Host → device</td><td>0</td><td>Report ID, always <code>0x00</code></td></tr>
+  <tr><td></td><td>1</td><td>USBCase: <code>0x01</code> I²C write, <code>0x02</code> ADC control, <code>0x03</code> read version, <code>0x04</code> GPIO, <code>0x06</code>/<code>0x07</code> write/read ID</td></tr>
+  <tr><td></td><td>2–4</td><td>Parameters p1, p2, p3; meaning depends on the USBCase</td></tr>
+  <tr><td></td><td>5–16</td><td>Zero padding to the 17-byte report the descriptor declares</td></tr>
+  <tr><td>Device → host</td><td>0–2</td><td>24-bit signed ADC counts, big-endian, bit 23 is the sign</td></tr>
+  <tr><td></td><td>3–4</td><td>Firmware major and minor version (reply to read version only)</td></tr>
+</table>
+<p>Two details of the wire format only became apparent on Linux. First, the vendor library always sends a 64-byte buffer and lets the Windows HID layer truncate it; the Linux kernel rejects a write longer than the declared report with <code>EPIPE</code>, so the driver sends exactly 17 bytes. Second, because hidraw strips the report ID from input reports, every input offset in the recovered constants had to be reduced by one. Both facts are recorded in the constants module, which serves as the reference for the wire format.</p>
+<p>The power-on initialisation is reproduced verbatim from the vendor's <code>Initdevice</code>: the ADC configuration register is written five times with input-buffer flushes interleaved, followed by the sample-rate command, the bridge excitation setting and the gain. The repetition looked redundant but was kept, because the ADC does not reliably latch its configuration on the first write. The sample-rate command accepts one code, which selects 80 samples per second; there is no other rate. Gain is set by writing both wipers of a digital potentiometer over I²C, and the vendor library writes the same wiper value regardless of bridge type. Bridge selection is a single GPIO command that energises the internal completion resistors for quarter and half bridge and de-energises them for full bridge.</p>
+
+<h3>3.2 Transport layer</h3>
+<p>The transport module wraps one open HID handle in a small thread-safe object with four operations: <code>write_command</code>, <code>read_report</code> with a timeout, <code>command_read</code>, and <code>flush_input</code>. The write and the read of <code>command_read</code> happen under a single lock acquisition, so that a concurrent caller cannot consume the reply to somebody else's command. The flush exists because the MM01 streams continuously while its ADC is running: a freshly opened handle, or one whose ADC was left running by a previous process, has conversions queued in the kernel, and a command reply read without flushing would return a measurement instead of the reply. Enumeration filters on the vendor and product ID and sorts the result by serial number, mirroring the vendor's <code>GetOrderedDeviceIndex</code>, so that device 0 stays device 0 across a re-plug even though the hidraw path changes.</p>
+<p>Access to <code>/dev/hidraw*</code> is root-only by default. A one-line udev rule grants mode <code>0666</code> to any hidraw device with the Micro-Measurements vendor ID, and the setup script installs it and reloads udev. The first entry in the troubleshooting guide, "the app says no device but lsusb shows it", is answered by that rule and by the fact that permissions are assigned when a device is plugged in, so it must be re-plugged after the rule is installed.</p>
+
+<h3>3.3 Scaling and host-side calibration</h3>
+<p>The instrument delivers raw counts; every engineering unit is computed on the host, exactly as the vendor library does it. The ADC spans ±2.048&nbsp;V over its 24-bit signed range, the sign is inverted to match the instrument's polarity, and the stored balance offset is subtracted:</p>
+<p class="eq"><span class="n">(1)</span><i>V</i> = &minus;<i>N</i> &times; 2.048 / 2<sup>23</sup> &minus; <i>V</i><sub>zero</sub></p>
+<p>Microstrain follows from the amplifier gain (100), an instrument constant (80), and the gage factor <i>GF</i>; the bridge output in mV/V is a fixed multiple of the same voltage:</p>
+<p class="eq"><span class="n">(2)</span><i>&mu;&epsilon;</i> = <i>V</i> &times; 100 &times; 80 &times; (2 / <i>GF</i>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <i>mV/V</i> = 4&thinsp;<i>V</i></p>
+<p>Neither the gage factor nor the zero offset is written to the device; the MM01 stores neither. Changing the gage factor merely re-scales subsequent readings. Zero balance averages 50 conversions and stores the result as <i>V</i><sub>zero</sub> in volts, so that it remains valid if the gage factor is changed later. The vendor's averaging routine flushes the input, sets the sample rate, starts the ADC, reads the requested number of conversions, waits 100&nbsp;ms and then <em>stops</em> the ADC. Reproducing it faithfully therefore means the zero command must restart the ADC afterwards or the live stream dies; the driver does so in a <code>finally</code> clause, and a dedicated test asserts that the stream is still running after a zero. That the arithmetic is host-side is not an implementation detail hidden from students: it is the subject of two of the five labs, which have the student change the gage factor and watch the displayed strain scale by exactly the predicted ratio.</p>
+
+<h3>3.4 Streaming architecture</h3>
+<p>The defining property of the MM01 is that it streams. Once the ADC is started the device pushes a conversion every 12.5&nbsp;ms and answers no read command, so the familiar design of polling the instrument once per user-interface tick is wrong: each poll would return the oldest report in the kernel buffer, and the displayed value would fall progressively further behind real time. The device manager therefore separates consumption of the stream from publication to clients (Figure&nbsp;1, centre).</p>
+
+
+<p>Each connected device gets a dedicated <strong>reader thread</strong> that blocks on the HID handle, decodes each report as it arrives, applies equations (1) and (2), and overwrites a per-device record of the latest counts, microstrain and mV/V. A single <strong>publisher thread</strong> wakes at the configured interval (200&nbsp;ms by default), takes a snapshot of every device's latest values into a frame, and hands the frame to each WebSocket subscriber's queue through the event loop's thread-safe <code>call_soon_threadsafe</code>. The WebSocket handler is a plain <code>await queue.get()</code> loop that serialises the frame to JSON. The REST readings endpoint returns the same snapshot without touching the hardware at all.</p>
+<p>The consequence, which is stated in the configuration file and the labs because it matters to the experiment, is that the publication interval controls only how often the browser is refreshed. It never changes the conversion rate, and the server always holds the newest conversion regardless of how many clients are connected or how slowly they consume frames.</p>
+
+<h3>3.5 Command priority under a continuous stream</h3>
+<p>The reader thread holds the per-device lock for the duration of one read, releases it, and immediately re-acquires it for the next. Commands such as changing the bridge or zeroing need the same lock for a whole multi-report sequence. With a plain mutex this arrangement fails in practice: CPython locks are not first-in-first-out, the reader wins the race for the lock almost every time, and a command thread can wait indefinitely. On hardware this appeared as bridge changes stalling for over a second, and with a silent device the command never completed at all.</p>
+<p>The fix is a small lock that gives commands priority. A command registers itself as a waiter before it blocks, and the reader checks for waiters before each acquisition and yields while any exist. A command therefore waits for at most one in-flight read (Figure&nbsp;2). That makes the reader's read timeout the worst-case addition to command latency, so it is deliberately short: 100&nbsp;ms, which still tolerates eight missed conversion slots at 80&nbsp;S/s before the reader wakes up empty-handed and simply loops again.</p>
+
+<figure>
+<svg width="580" height="189" viewBox="0 0 660 215" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, Arial, sans-serif" font-size="10.5">
+  <defs>
+    <marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1f3a5f"/>
+    </marker>
+  </defs>
+  <!-- Reader thread -->
+  <rect x="10" y="14" width="190" height="96" rx="6" fill="#fff" stroke="#1f3a5f" stroke-width="1.3"/>
+  <text x="105" y="32" text-anchor="middle" font-weight="bold" fill="#1f3a5f">Reader thread (one per device)</text>
+  <text x="22" y="50" fill="#333">loop:</text>
+  <text x="34" y="64" fill="#333">wait while any command is waiting</text>
+  <text x="34" y="78" fill="#333">lock &#8594; read report (&#8804; 100 ms) &#8594; unlock</text>
+  <text x="34" y="92" fill="#333">decode, scale, store last_*</text>
+
+  <!-- Command thread -->
+  <rect x="10" y="126" width="190" height="76" rx="6" fill="#fff" stroke="#1f3a5f" stroke-width="1.3"/>
+  <text x="105" y="144" text-anchor="middle" font-weight="bold" fill="#1f3a5f">Command (executor thread)</text>
+  <text x="22" y="162" fill="#333">register as waiter</text>
+  <text x="22" y="176" fill="#333">lock &#8594; write sequence &#8594; unlock</text>
+  <text x="22" y="190" fill="#333">e.g. set bridge, zero (50 conversions)</text>
+
+  <!-- Lock -->
+  <rect x="240" y="60" width="120" height="70" rx="6" fill="#f3f5f8" stroke="#1f3a5f" stroke-width="1.3"/>
+  <text x="300" y="82" text-anchor="middle" font-weight="bold" fill="#1f3a5f">_DeviceLock</text>
+  <text x="300" y="98" text-anchor="middle" fill="#333">mutex + waiter count</text>
+  <text x="300" y="112" text-anchor="middle" fill="#333">commands go first</text>
+  <line x1="200" y1="72" x2="238" y2="84" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr2)"/>
+  <line x1="200" y1="160" x2="238" y2="118" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr2)"/>
+
+  <!-- Device info -->
+  <rect x="400" y="14" width="120" height="58" rx="6" fill="#fff" stroke="#1f3a5f" stroke-width="1.3"/>
+  <text x="460" y="32" text-anchor="middle" font-weight="bold" fill="#1f3a5f">MM01DeviceInfo</text>
+  <text x="460" y="48" text-anchor="middle" fill="#333">last_counts, last_&#181;&#949;,</text>
+  <text x="460" y="62" text-anchor="middle" fill="#333">last_mv_per_v, in_error</text>
+  <line x1="200" y1="44" x2="398" y2="44" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr2)"/>
+  <text x="300" y="38" text-anchor="middle" font-size="9" fill="#555">every conversion (12.5 ms)</text>
+
+  <!-- Publisher -->
+  <rect x="400" y="96" width="120" height="58" rx="6" fill="#fff" stroke="#1f3a5f" stroke-width="1.3"/>
+  <text x="460" y="114" text-anchor="middle" font-weight="bold" fill="#1f3a5f">Publisher thread</text>
+  <text x="460" y="130" text-anchor="middle" fill="#333">snapshot every</text>
+  <text x="460" y="144" text-anchor="middle" fill="#333">poll_interval_ms (200)</text>
+  <line x1="460" y1="72" x2="460" y2="94" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr2)"/>
+
+  <!-- Recorder -->
+  <rect x="400" y="168" width="120" height="36" rx="6" fill="#fff" stroke="#8a97a8" stroke-width="1.2"/>
+  <text x="460" y="183" text-anchor="middle" font-weight="bold" fill="#333">Recorder thread</text>
+  <text x="460" y="197" text-anchor="middle" fill="#333">tick = t&#8320; + n&#183;interval</text>
+  <line x1="530" y1="43" x2="560" y2="43" stroke="#8a97a8" stroke-width="1"/>
+  <line x1="560" y1="43" x2="560" y2="186" stroke="#8a97a8" stroke-width="1"/>
+  <line x1="560" y1="186" x2="522" y2="186" stroke="#8a97a8" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- WS queues -->
+  <rect x="560" y="96" width="90" height="58" rx="6" fill="#fff" stroke="#1f3a5f" stroke-width="1.3"/>
+  <text x="605" y="114" text-anchor="middle" font-weight="bold" fill="#1f3a5f">WS clients</text>
+  <text x="605" y="130" text-anchor="middle" fill="#333">asyncio.Queue</text>
+  <text x="605" y="144" text-anchor="middle" fill="#333">per socket</text>
+  <line x1="520" y1="125" x2="558" y2="125" stroke="#1f3a5f" stroke-width="1.2" marker-end="url(#arr2)"/>
+</svg>
+<figcaption><b>Figure 2.</b> Thread model inside the device manager. The reader and the command paths contend for the per-device lock; the lock's waiter count lets a command pre-empt the reader after at most one read. Publisher and recorder only read the stored latest values and never touch the hardware.</figcaption>
+</figure>
+
+<h3>3.6 REST and WebSocket interface</h3>
+<p>All device I/O is synchronous, so every route that touches hardware dispatches to the default thread pool with <code>run_in_executor</code> and the event loop is never blocked by a USB read. Requests and responses are Pydantic models, which gives validation (gage factor in (0, 9.999], label at most 32 characters, bridge as an enumeration) and an OpenAPI schema for free; the interactive documentation page at <code>/docs</code> is used directly in the labs. Readings that are not yet available are NaN inside the driver and are mapped to JSON <code>null</code> at the boundary, since NaN is not valid JSON. If the device manager failed to start, every route returns 503 with a diagnostic message; an unknown device index returns 404. Table&nbsp;4 summarises the surface.</p>
+<p class="tcap"><b>Table 4.</b> HTTP and WebSocket endpoints. <code>{dev}</code> is the device index, which for the single-channel MM01 is also the channel index.</p>
+<table>
+  <tr><th style="width:9%">Method</th><th style="width:36%">Path</th><th>Purpose</th></tr>
+  <tr><td>GET</td><td><code>/mm01/devices</code></td><td>List connected instruments with serial, firmware, bridge, gage factor, zero offset</td></tr>
+  <tr><td>POST</td><td><code>/mm01/scan</code></td><td>Re-enumerate USB; closes and re-opens every handle</td></tr>
+  <tr><td>GET</td><td><code>/mm01/devices/{dev}</code></td><td>One instrument's configuration</td></tr>
+  <tr><td>GET</td><td><code>/mm01/readings</code></td><td>Latest microstrain and mV/V from every instrument (no hardware access)</td></tr>
+  <tr><td>GET</td><td><code>/mm01/devices/{dev}/reading</code></td><td>Latest reading for one instrument, including raw counts</td></tr>
+  <tr><td>POST</td><td><code>/mm01/devices/{dev}/bridge</code></td><td>Quarter, half or full bridge; switches internal completion</td></tr>
+  <tr><td>POST</td><td><code>/mm01/devices/{dev}/gage-factor</code></td><td>Set the host-side gage factor</td></tr>
+  <tr><td>POST</td><td><code>/mm01/devices/{dev}/zero</code></td><td>Average 50 conversions and store the balance offset in volts</td></tr>
+  <tr><td>DELETE</td><td><code>/mm01/devices/{dev}/zero</code></td><td>Clear the balance offset</td></tr>
+  <tr><td>POST</td><td><code>/mm01/devices/{dev}/label</code></td><td>Set a display label</td></tr>
+  <tr><td>WS</td><td><code>/mm01/ws</code></td><td>Stream of snapshot frames at the publication interval</td></tr>
+  <tr><td>GET</td><td><code>/recording/status</code></td><td>Whether a recording is running, and its row count so far</td></tr>
+  <tr><td>POST</td><td><code>/recording/start</code></td><td>Begin a recording: name, note, row interval, optional device subset</td></tr>
+  <tr><td>POST</td><td><code>/recording/stop</code></td><td>Close the file and return the finished session</td></tr>
+  <tr><td>GET</td><td><code>/recording/sessions</code></td><td>Saved recordings, newest first, with their metadata</td></tr>
+  <tr><td>GET</td><td><code>/recording/sessions/{id}/download</code></td><td>The CSV file</td></tr>
+  <tr><td>DELETE</td><td><code>/recording/sessions/{id}</code></td><td>Delete a recording and its metadata</td></tr>
+</table>
+<p>A WebSocket frame is small and self-describing, so a student can consume it from a few lines of Python as easily as from the supplied page:</p>
+<pre>{"timestamp": 1234.567,
+ "readings":  {"0": 78.52},
+ "mv_per_v":  {"0": 0.039112},
+ "error_devices": []}</pre>
+
+<h3>3.7 Recording</h3>
+<p>The MM01 converts 80 times a second and the browser sees perhaps five of those, so anything a student wants to keep has to be written down on the server. The recorder is a single writer thread that samples each selected device's latest values at a fixed interval and appends a row to a CSV file. Its tick is anchored to the start time (the <i>n</i>-th row is due at <i>t</i><sub>0</sub>&nbsp;+&nbsp;<i>n</i>&thinsp;&times;&thinsp;interval) rather than sleeping a fixed interval after each row, so timestamps do not drift over an hour-long recording. The interval is clamped to 10&nbsp;ms to 60&nbsp;s. At 12&nbsp;ms the recorder captures approximately every conversion &mdash; measured on hardware at 83.1 rows per second with 7&nbsp;% of rows repeating the previous conversion &mdash; while at the 50&nbsp;ms default it keeps one conversion in each window and discards the rest.</p>
+<p>That last point is a design decision that is documented rather than hidden. The recorder samples, it does not average, and the raw <code>counts</code> column is written beside the scaled values precisely so that a tick which landed between two conversions shows up as a repeated count in the data instead of being disguised. A blank cell, rather than the string "nan" or a stale value, marks an instant at which a device had no reading, because a blank is what both Excel and pandas read as missing data. The file is flushed once a second so it can be inspected while the recording is in progress.</p>
+<p class="tcap"><b>Table 5.</b> Columns of a recording with one device. Each additional device adds three more columns with its own index.</p>
+<table>
+  <tr><th style="width:20%">Column</th><th>Content</th></tr>
+  <tr><td><code>t_s</code></td><td>Seconds since the recording started, to the millisecond; the natural x-axis</td></tr>
+  <tr><td><code>iso_time</code></td><td>Local wall-clock time of the row</td></tr>
+  <tr><td><code>microstrain_0</code></td><td>Scaled microstrain, under the gage factor and zero offset in the sidecar</td></tr>
+  <tr><td><code>mv_per_v_0</code></td><td>Bridge output in mV/V</td></tr>
+  <tr><td><code>counts_0</code></td><td>Raw 24-bit ADC counts the two scaled values were computed from</td></tr>
+</table>
+<p>Because gage factor, bridge and zero offset are host-side scaling, a CSV of microstrain is meaningless without them. Every session therefore produces two files: the CSV, kept free of any preamble so it opens cleanly in a spreadsheet, and a JSON sidecar carrying the name, note, start and stop times, row interval, and for each recorded device its serial number, firmware, bridge, gage factor, zero offset and whether it was simulated. The sidecar is written when the recording starts and rewritten when it stops. If the Pi loses power mid-recording the CSV survives up to the last flush and the session is still listed, marked <em>interrupted</em>, instead of vanishing. A recording stops itself after a configurable maximum (one hour by default) so that one left running overnight cannot fill the SD card; at 20 rows a second a single channel writes about 4&nbsp;MB an hour.</p>
+<p>Session identifiers are generated on the server from a timestamp and a slug of the user's name, but they come back from clients as path parameters. Every lookup matches the identifier against a strict pattern before it is joined to the recordings directory, which closes the path-traversal hole that a download endpoint otherwise opens. Only one recording runs at a time; a second start request is refused with a clear message rather than queued.</p>
+
+<h3>3.8 Simulation</h3>
+<p>A virtual device implements the same call surface as the real transport handle: it accepts the same five-byte commands, keeps the same state (ADC running or stopped, sample rate set, excitation on or off, wiper writes), replies to the version query in the same report layout, and returns nothing on a read while the ADC is stopped, exactly as hardware does. Its signal is a ±1000&nbsp;&mu;&epsilon; sine with a ten-second period and 5&nbsp;&mu;&epsilon; of Gaussian noise, and it is encoded back into 24-bit counts through the inverse of equations (1) and (2) using the real scaling constants. A reader that decodes the simulated report with the production code therefore recovers the intended microstrain, and reads are paced at 12.5&nbsp;ms so that timing-sensitive logic sees realistic behaviour.</p>
+<p>The simulated device manager overrides one method, enumeration, and inherits the reader threads, publisher, lock and every command unchanged. This is what makes the simulator trustworthy as a test double: the only code it bypasses is the USB layer itself. In the user interface a prominent SIMULATOR badge is shown so that generated numbers are never mistaken for measurements, and the recording sidecar flags simulated devices for the same reason.</p>
+
+<h3>3.9 User interface</h3>
+<p>The front end is one HTML page and four plain scripts, with no build step, no bundler and no framework beyond Alpine.js for reactivity and uPlot for the strip chart. It shows a large microstrain readout with running minimum and maximum, the mV/V value, the stored offset, the bridge and gage factor in force, a 60-second rolling chart, controls for every command in Table&nbsp;4, and a recording panel that lists, downloads and deletes sessions. The WebSocket client reconnects five seconds after a drop, and a status dot shows whether the stream is live. Keeping the page free of tooling was a goal in itself: a student can read every line of it, and an instructor can change a label with a text editor on the Pi.</p>
+
+<h3>3.10 Verification</h3>
+<p>The test suite runs entirely against the virtual device, in-process, through an ASGI transport, so it needs neither hardware nor a running server and completes in under ten seconds on a development machine. The setup script runs it as its final step, which turns "the install is healthy" into a fact rather than an assumption before anyone goes looking for a wiring fault. Table&nbsp;6 summarises the coverage.</p>
+<p class="tcap"><b>Table 6.</b> Automated tests (103 in total, all hardware-free).</p>
+<table>
+  <tr><th style="width:28%">Group</th><th style="width:10%" class="num">Tests</th><th>What is checked</th></tr>
+  <tr><td>Protocol and transport</td><td class="num">41</td><td>Report construction and padding, 24-bit sign decoding, version parsing, the initialisation sequence, bridge and gain commands, averaging, and scaling round trips through the virtual device</td></tr>
+  <tr><td>Device API</td><td class="num">31</td><td>Every REST route and the WebSocket, including 503 and 404 behaviour, validation limits, that zeroing leaves the ADC streaming, and that gage factor changes re-scale readings without touching the device</td></tr>
+  <tr><td>Recording</td><td class="num">31</td><td>Session lifecycle, CSV layout, blank cells for missing readings, sidecar written at start and stop, interrupted sessions listed, auto-stop, identifier validation, delete, and that the live session is excluded from the list</td></tr>
+</table>
+<p>Two measures keep the results identical on every machine. The test configuration ignores any <code>.env</code> file and scrubs every <code>MM01_*</code> environment variable, so a student who has switched on simulator mode for a lab sees the same results as everyone else. And recording tests write only to a temporary directory, never to the real <code>recordings/</code> folder, which holds student data and is never cleaned up by anything in the repository.</p>
+<p>Some behaviour can only be observed on hardware, and those observations shaped the design: the command starvation of Section&nbsp;3.5 was measured on a real MM01 as a bridge change stalling for over a second; the <code>EPIPE</code> rejection of a 65-byte report and the queue of stale conversions on a freshly opened handle were both found on Linux. Each is recorded in a comment beside the code it justified.</p>
+
+<h3>3.11 Deployment and maintenance</h3>
+<p>Installation is one script. It installs two system packages, creates a virtual environment, installs the pinned Python packages (from the offline wheelhouse if one is present), installs the udev rule, downloads the two front-end libraries if they are missing, and runs the tests. A second script starts Uvicorn on port 8110, bound to every interface so that laptops can reach it; the page redirects to the application, and the API documentation is one path away. Configuration is seven environment variables with working defaults: automatic scan, publication interval, simulator on/off and count, recording directory, default row interval and maximum recording length.</p>
+<p>The driver directory is a frozen copy from a larger instrumentation project, refreshed by a synchronisation script rather than edited in place, so that the teaching kit remains stable and driver fixes arrive with their upstream tests. The recorder was built outside that directory, against the manager's public surface only, precisely so that a synchronisation cannot remove it. That boundary is the one piece of project structure a maintainer must know, and it is written down in the repository's contributor notes.</p>
+
+<h2>4. Conclusion</h2>
+<p>All seven objectives of Section&nbsp;1 were met. A Raspberry Pi 4 running the software reads one or more MM01 instruments natively over USB HID, serves the same live stream to every browser on the network, exposes each control through a documented REST API, records to auditable CSV, installs offline from pinned binary wheels, and runs the same code path with or without hardware. The driver, at about 600 lines of code across four modules with as much again in commentary, is small enough that the labs refer students to specific functions in it, and the scaling arithmetic they are asked to predict is the arithmetic that produces the number on the screen.</p>
+<p>Four lessons generalise beyond this instrument:</p>
+<ul>
+  <li><strong>Establish whether the device streams or answers.</strong> The MM01 pushes conversions and ignores polls. Every sensible design decision in the server, from the reader threads to the meaning of the publication interval, followed from recognising that early. A polled design would have shipped and then displayed steadily staler data.</li>
+  <li><strong>Lock fairness matters when one party never lets go.</strong> A reader that re-acquires a lock the instant it releases it will starve every other user under CPython's non-FIFO locks. A waiter count is a few lines and turns an indefinite stall into a bounded one, and the read timeout then becomes a latency budget to be set deliberately.</li>
+  <li><strong>Vendor offsets are platform offsets.</strong> The report-ID byte that Windows prepends and Linux does not is the kind of detail that produces plausible garbage rather than an error. Recording the shift once, in the constants module, kept it from being rediscovered in every parser.</li>
+  <li><strong>On constrained targets, pinning is a requirement.</strong> A single upstream package dropping a Python version turned a two-minute install into a multi-hour compile. Resolving the dependency set once for the exact platform, and explaining the pins where the next maintainer will look, is cheaper than any amount of troubleshooting in a classroom.</li>
+</ul>
+<p>The limitations are the ones chosen. There is no authentication, so the server belongs on a closed network. The recorder samples the latest conversion rather than capturing or averaging all of them, which is right for a hand-loaded beam and wrong for a transient shorter than the row interval; the raw counts column makes the difference visible but does not remove it. Only one recording runs at a time, and only one process may hold an instrument. Natural extensions include a ring buffer in the reader thread so that a recording can capture every conversion regardless of interval, a systemd unit so the Pi serves the page from power-on, and optional decimation with averaging for students who want a quieter number and understand what they are trading for it. None of these require changes to the protocol layer, which is the part of the work that was hardest to obtain and is now, for the first time, available in readable form.</p>
+
+<h2>Acknowledgements and AI assistance</h2>
+<p>This work was carried out with the assistance of <strong>Claude Code</strong>, Anthropic's agentic coding tool, running the <strong>Claude Opus&nbsp;5</strong> model. That assistance covered the whole of the project and is disclosed here in the interest of transparency, because a teaching kit invites the reader to trust and reuse its code.</p>
+<p>The model contributed to the analysis of the decompiled vendor assembly, the Python implementation of the transport, protocol, manager, recorder and web layers, the test suite, the laboratory guides, and the drafting of this paper. It is recorded as a co-author on each commit in the repository, so the extent of its involvement can be inspected in the version history rather than taken on trust.</p>
+<p>Responsibility for the result rests with the author. Every design decision described in Section&nbsp;3 was reviewed and accepted deliberately, and the claims made here were checked rather than assumed: the 103 automated tests of Section&nbsp;3.10 run against a virtual device that mirrors the real protocol, and the behaviour that only hardware can show &mdash; command starvation under the continuous stream, the rejection of an over-long report, the queue of stale conversions on a freshly opened handle, and the recorded throughput at a 12&nbsp;ms interval &mdash; was measured on a physical MM01 attached to a Raspberry&nbsp;Pi. Where an observation came from hardware it is identified as such in the text.</p>
+<p>Readers reproducing this work should note that the protocol constants originate from a decompiled vendor library and are validated by the tests and by agreement with the vendor software, not by a published specification.</p>
+
+<h2>References</h2>
+<ol class="refs">
+  <li>Micro-Measurements (Vishay Precision Group). <em>MM01 StudentDAQ / MultiDaq</em> software distribution, including <code>MM01InterfaceLib.dll</code> v2.0.2. Source of the recovered protocol and scaling constants.</li>
+  <li>M. Bower. <em>MM01 StudentDAQ — Raspberry Pi kit.</em> Source code, laboratory guides and this paper: github.com/mike-bower/mm01-student-daq. MIT licence.</li>
+  <li>S. Ramírez. <em>FastAPI.</em> fastapi.tiangolo.com.</li>
+  <li>libusb project. <em>hidapi</em>, and the Python <code>hid</code> binding. github.com/libusb/hidapi.</li>
+  <li>C. Porzio. <em>Alpine.js.</em> alpinejs.dev.</li>
+  <li>L. Oniya. <em>uPlot.</em> github.com/leeoniya/uPlot.</li>
+  <li>Anthropic. <em>Claude Code</em> and the <em>Claude Opus&nbsp;5</em> model. claude.com/claude-code. Used as described under Acknowledgements.</li>
+</ol>
+
+<div class="footer">Creating a web-based API for the MM-01 StudentDAQ on Raspberry Pi Hardware &nbsp;·&nbsp; M. Bower, September 2026 &nbsp;·&nbsp; Released under the MIT licence with the accompanying source code. &nbsp;·&nbsp; Developed with Claude Code (Claude Opus&nbsp;5).</div>
+
+</body>
+</html>
