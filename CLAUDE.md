@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A teaching kit: a FastAPI app that reads a Micro-Measurements **MM01 StudentDAQ**
 strain-gage instrument over USB HID and serves a live microstrain readout, strip
-chart and REST/WebSocket API. Target deployment is a Raspberry Pi 4 on 64-bit
+chart, CSV recording and REST/WebSocket API. Target deployment is a Raspberry Pi 4 on 64-bit
 Raspberry Pi OS Bullseye (**CPython 3.9**), on a classroom network, with students
 as the users. `docs/labs/` holds five student lab guides that the API surface and
 the UI must keep matching.
@@ -16,7 +16,7 @@ the UI must keep matching.
 ```bash
 bash setup_pi.sh                          # one-time Pi setup (apt, venv, udev rule, vendored JS, tests)
 ./run.sh                                  # serve on 0.0.0.0:8110  (uvicorn main:app)
-./.venv/bin/python -m pytest tests/ -q    # 72 tests, no hardware needed
+./.venv/bin/python -m pytest tests/ -q    # 103 tests, no hardware needed
 ```
 
 Tests need no venv if `fastapi`/`pytest`/`httpx` are importable — `python3 -m pytest tests/ -q`
@@ -37,7 +37,8 @@ aarch64/cp39 wheels), `tools/vendor_assets.py` (re-download Alpine + uPlot into
 Working without hardware: `cp .env.example .env` and set `MM01_SIM_ENABLED=true`.
 The UI then shows a SIMULATOR badge. Config lives in `app/config.py` (pydantic-settings,
 reads `.env`); the only knobs are `MM01_AUTO_SCAN`, `MM01_POLL_INTERVAL_MS`,
-`MM01_SIM_ENABLED`, `MM01_SIM_COUNT`.
+`MM01_SIM_ENABLED`, `MM01_SIM_COUNT`, `MM01_RECORD_DIR`,
+`MM01_RECORD_INTERVAL_MS`, `MM01_RECORD_MAX_SECONDS`.
 
 ## Architecture
 
@@ -47,7 +48,9 @@ MM01 hardware  ── USB HID, 80 S/s, 24-bit signed ADC counts
   protocol.py      one function per vendor operation + scaling math   (pure, no state)
   manager.py       device registry, reader threads, publisher thread, commands
   routers/mm01.py  REST + /mm01/ws WebSocket, all blocking I/O via run_in_executor
-  static/          one page: Alpine store + uPlot strip chart
+  recorder.py      writer thread → recordings/<id>.csv + .json   (outside the driver)
+  routers/recording.py  /recording start, stop, status, list, download, delete
+  static/          one page: Alpine stores (mm01, rec) + uPlot strip chart
 ```
 
 **The device streams; it is not polled.** Once the ADC starts, the MM01 pushes
@@ -78,14 +81,35 @@ vendor's C# source. The constants were recovered from `MM01InterfaceLib.dll` v2.
 `constants.py` is the reference for the wire format — read it before touching
 protocol code.
 
+**Recording samples, it does not capture every conversion.** `Recorder` runs one
+writer thread that reads `MM01DeviceInfo.last_*` on a tick anchored to the start
+time (no drift) and appends a CSV row. At 12 ms that is approximately every
+conversion; slower intervals discard the conversions in between — it is not an
+average, and the raw `counts_N` column is written so a repeated sample is visible
+in the data. Two files per session: `<id>.csv` (clean, no preamble, opens in
+Excel) and `<id>.json` (gage factor, bridge, zero offset — microstrain is
+meaningless without them). The metadata is written at start *and* rewritten at
+stop, so a session killed by a power cut lists as `interrupted` instead of
+vanishing; the live session is excluded from `list_sessions()` because its stored
+row count is still zero. `Recorder._lock` is never held across the thread join in
+`stop()` — the writer thread's own `_finish()` takes it.
+
+**The recorder lives outside `app/mm01_bridge/` on purpose.** That whole
+directory is overwritten by `tools/sync_bridge.sh` (below), so recording is built
+on the manager's public surface only — `devices`, `get_device()` — and nothing in
+the driver knows it exists. Put recording changes in `app/recorder.py`,
+`app/routers/recording.py`, `app/models/recording_models.py`,
+`static/js/recording.js` or `tests/test_recording.py`; none of those are synced.
+
 **Simulation mirrors the real path.** `SimMM01DeviceManager` overrides only `scan()`;
 `VirtualMM01Device` duck-types `MM01Device` and encodes synthetic microstrain back
 through the *real* scaling constants, so the whole manager/router/UI stack is
 exercised unchanged. Tests use it — hardware behaviour changes belong in
 `virtual_device.py` too, or the tests stop meaning anything.
 
-Front end has **no build step**: `static/index.html` loads `vendor/*` then three
-plain scripts that define globals (`API`, `Charts`, `MM01WS` + an Alpine store).
+Front end has **no build step**: `static/index.html` loads `vendor/*` then four
+plain scripts that define globals (`API`, `Charts`, `MM01WS` + the `mm01` and
+`rec` Alpine stores).
 Vendored libraries are committed on purpose so a Pi with no internet still works.
 
 ## Constraints specific to this repo
@@ -109,4 +133,8 @@ Vendored libraries are committed on purpose so a Pi with no internet still works
   inherited from the parent project. It does not exist in `app/config.py`, and a
   test asserts on that exact string — don't "fix" one without the other.
 - `tests/conftest.py` disables `.env` and scrubs `MM01_*` env vars so a student who
-  set simulator mode for a lab gets the same test results as everyone else.
+  set simulator mode for a lab gets the same test results as everyone else. The
+  scrub list is explicit — add new settings to it.
+- **Recording tests write to `tmp_path`**, never to `recordings/`. `recordings/`
+  is gitignored and holds student data; nothing in the repo should clean it up
+  automatically.

@@ -1,6 +1,7 @@
 """
 MM01 StudentDAQ — a small FastAPI app that reads a Micro-Measurements MM01
-(StudentDAQ / MultiDAQ) over USB and serves a live strain readout.
+(StudentDAQ / MultiDAQ) over USB and serves a live strain readout, plus
+recording of that stream to CSV.
 
 Run it:
     ./run.sh
@@ -23,7 +24,8 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.config import get_settings
-from app.routers import mm01
+from app.recorder import build_recorder
+from app.routers import mm01, recording
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("mm01")
@@ -31,9 +33,16 @@ log = logging.getLogger("mm01")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the MM01 device manager, and stop it cleanly on shutdown."""
+    """Start the MM01 device manager and recorder, and stop both on shutdown."""
     settings = get_settings()
     app.state.settings = settings
+
+    # The recorder is independent of the hardware: with no MM01 attached it
+    # still serves and deletes recordings made earlier.
+    recorder = build_recorder(settings)
+    app.state.recorder = recorder
+    if recorder is not None:
+        log.info("Recording to %s", recorder.directory)
 
     manager = None
     try:
@@ -66,6 +75,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Close any open CSV before the readers stop, so the file is not left
+    # mid-row with metadata that still says it is running.
+    if recorder is not None:
+        recorder.shutdown()
     if manager is not None:
         await manager.stop()
 
@@ -78,6 +91,7 @@ app = FastAPI(
 )
 
 app.include_router(mm01.router)
+app.include_router(recording.router)
 
 
 @app.get("/", include_in_schema=False)

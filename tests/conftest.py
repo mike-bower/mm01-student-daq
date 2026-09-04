@@ -28,6 +28,9 @@ for _var in (
     "MM01_POLL_INTERVAL_MS",
     "MM01_SIM_ENABLED",
     "MM01_SIM_COUNT",
+    "MM01_RECORD_DIR",
+    "MM01_RECORD_INTERVAL_MS",
+    "MM01_RECORD_MAX_SECONDS",
 ):
     os.environ.pop(_var, None)
 

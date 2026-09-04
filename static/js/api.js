@@ -47,6 +47,15 @@ const API = (() => {
     zeroMM01Device:    (dev)               => post(`/mm01/devices/${dev}/zero`),
     clearMM01Zero:     (dev)               => _req("DELETE", `/mm01/devices/${dev}/zero`),
     setMM01Label:      (dev, label)        => post(`/mm01/devices/${dev}/label`, { label }),
+
+    // Recording the live stream to a CSV file on the Pi. The download itself is
+    // a plain link (see recording.js downloadUrl), not a fetch.
+    recordingStatus:   ()      => get("/recording/status"),
+    startRecording:    (body)  => post("/recording/start", body),
+    stopRecording:     ()      => post("/recording/stop"),
+    listRecordings:    ()      => get("/recording/sessions"),
+    getRecording:      (id)    => get(`/recording/sessions/${encodeURIComponent(id)}`),
+    deleteRecording:   (id)    => _req("DELETE", `/recording/sessions/${encodeURIComponent(id)}`),
   };
 })();
 
